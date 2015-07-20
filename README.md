@@ -2,7 +2,7 @@
 a nice tool for mysql query
 contact me:755808379@qq.com
 
-example:
+//example:
 //function in a controller based on beego
 err = slimmysql.InitSql("user", "pass", "ip", "port", "db", "prefix", false) //last param true:check sql safe
 	if err != nil {
