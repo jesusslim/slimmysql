@@ -531,27 +531,16 @@ func convertValue2String(v interface{}) string {
 
 /**
  * Insert / convert ""/'' maybe a bug.
- * @param data_interface map[string]interface{} of data
- * @param data_string map[string]string of data
+ * @param map of data
  * @return id,err
  */
-func (this *Sql) Add(data_interface map[string]interface{}, data_string map[string]string) (int64, error) {
+func (this *Sql) Add(data map[string]interface{}) (int64, error) {
 	var columns []string
 	var values []string
-	if data_interface != nil {
-		for k, v := range data_interface {
-			columns = append(columns, k)
-			tmp_v := convertValue2String(v)
-			values = append(values, "\""+tmp_v+"\"")
-		}
-	} else if data_string != nil {
-		for k, v := range data_string {
-			columns = append(columns, k)
-			tmp_v := convertValue2String(v)
-			values = append(values, "\""+tmp_v+"\"")
-		}
-	} else {
-		return 0, nil
+	for k, v := range data {
+		columns = append(columns, k)
+		tmp_v := convertValue2String(v)
+		values = append(values, "\""+tmp_v+"\"")
 	}
 	sqlstr := " INSERT INTO `" + this.tableName + "` " + " (" + strings.Join(columns, ",") + ") VALUES (" + strings.Join(values, ",") + ") "
 	slimSqlLog("Insert", sqlstr)
