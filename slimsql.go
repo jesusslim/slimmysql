@@ -35,7 +35,7 @@ type Sql struct {
 	havingSql    string
 	orderSql     string
 	pageSql      string
-	tx           *sql.Tx //transmit
+	tx           *sql.Tx //Transaction
 	pkSql        string  //primary key
 }
 
