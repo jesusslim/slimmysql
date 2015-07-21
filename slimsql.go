@@ -514,16 +514,16 @@ func convertValue2String(v interface{}) string {
 		r = strconv.Itoa(v.(int))
 		break
 	case int32:
-		r = strconv.FormatInt(int64(v.(int32)), 32)
+		r = strconv.FormatInt(int64(v.(int32)), 10)
 		break
 	case int64:
-		r = strconv.FormatInt(v.(int64), 64)
+		r = strconv.FormatInt(v.(int64), 10)
 		break
 	case float32:
-		r = strconv.FormatFloat(float64(v.(float32)), 'f', -1, 32)
+		r = strconv.FormatFloat(float64(v.(float32)), 'f', -1, 10)
 		break
 	case float64:
-		r = strconv.FormatFloat(v.(float64), 'f', -1, 64)
+		r = strconv.FormatFloat(v.(float64), 'f', -1, 10)
 		break
 	}
 	return r
