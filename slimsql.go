@@ -617,6 +617,39 @@ func (this *Sql) Save(data map[string]interface{}) (int64, error) {
 }
 
 /**
+ * SetInc
+ * @param  fieldname string
+ * @param  value int
+ * @return rows,error
+ */
+func (this *Sql) SetInc(field string, value int) (int64, error) {
+	sqlstr := " UPDATE " + this.tableName + " "
+	sqlstr += " SET "
+	field_filted := convertValue2String(field)
+	sqlstr += field_filted + " = " + field_filted + " + " + convertValue2String(value)
+	sqlstr += " WHERE "
+	sqlstr += this.conditionSql
+	slimSqlLog("SETINC", sqlstr)
+	var r sql.Result
+	var err error
+	if this.tx != nil {
+		r, err = this.tx.Exec(sqlstr)
+	} else {
+		r, err = sqlDB.Exec(sqlstr)
+	}
+	if err != nil {
+		return 0, err
+	} else {
+		num, err := r.RowsAffected()
+		if err != nil {
+			return 0, err
+		} else {
+			return num, nil
+		}
+	}
+}
+
+/**
  * Delete
  * @return effect,error
  */
