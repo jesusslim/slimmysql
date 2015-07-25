@@ -1,9 +1,12 @@
 # slimmysql
+
 a nice tool for mysql query
+
 go语言下的mysql工具类 摈弃了ORM
+
 contact me:755808379@qq.com
 
-使用：
+	使用：
 	//初始化
 	err = slimmysql.InitSql("user", "pass", "ip", "port", "db", "prefix", false) //last param true:check sql safe
 	
