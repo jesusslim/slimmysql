@@ -6,6 +6,8 @@ go语言下的mysql工具类 摈弃了ORM
 
 contact me:755808379@qq.com
 
+github地址:https://github.com/jesusslim/slimmysql
+
 	使用：
 	//初始化
 	err = slimmysql.InitSql("user", "pass", "ip", "port", "db", "prefix", false) //last param true:check sql safe
