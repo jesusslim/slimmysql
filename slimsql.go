@@ -190,7 +190,7 @@ func convertCondition(condition map[string]interface{}) string {
 				break
 			case "between":
 				temp_v := strings.Split(temp, "|")
-				sql += join_sql + " ( " + temp_key + " >= " + temp_v[0] + " AND " + temp_key + " <= " + temp_v[1] + " ) "
+				sql += join_sql + " ( " + temp_key + " BETWEEN " + temp_v[0] + " AND " + temp_v[1] + " ) "
 				break
 			case "in":
 				sql += join_sql + temp_key + " IN (" + temp + ") "
@@ -216,76 +216,6 @@ func convertCondition(condition map[string]interface{}) string {
 	}
 	return sql
 }
-
-// /**
-//  * convert condition map to sql str
-//  */
-// func convertCondition(condition map[string]interface{}, k string) string {
-// 	//fmt.Println(condition)
-// 	sql := ""
-// 	if len(k) > 0 && k != "_" && condition["relation"] != nil {
-// 		switch strings.ToUpper(condition["relation"].(string)) {
-// 		case "GT":
-// 			sql = k + " > " + convertValue2String(condition["value"])
-// 			break
-// 		case "EGT":
-// 			sql = k + " >= " + convertValue2String(condition["value"])
-// 			break
-// 		case "LT":
-// 			sql = k + " < " + convertValue2String(condition["value"])
-// 			break
-// 		case "ELT":
-// 			sql = k + " <= " + convertValue2String(condition["value"])
-// 			break
-// 		case "BETWEEN":
-// 			sql = k + " >= " + convertValue2String(condition["from"]) + " AND " + k + " <= " + convertValue2String(condition["to"])
-// 			break
-// 		case "IN":
-// 			sql = k + " IN (" + convertValue2String(condition["value"]) + ")"
-// 			break
-// 		case "NOTIN":
-// 			sql = k + " NOT IN (" + convertValue2String(condition["value"]) + ")"
-// 			break
-// 		case "LIKE":
-// 			sql = k + " LIKE '%" + convertValue2String(condition["value"]) + "%'"
-// 			break
-// 		default:
-// 			sql = " 1 = 1 "
-// 			break
-// 		}
-// 		return sql
-// 	}
-// 	join := "AND"
-// 	if condition["relation"] != nil && strings.ToUpper(condition["relation"].(string)) == "OR" {
-// 		join = "OR"
-// 	}
-// 	i := 0
-// 	join_sql := " "
-// 	for k, v := range condition {
-// 		if k == "relation" {
-// 			continue
-// 		}
-// 		if i == 0 {
-// 			join_sql = " "
-// 		} else {
-// 			join_sql = " " + join + " "
-// 		}
-// 		switch v.(type) {
-// 		case string, int, int32, int64, float32, float64:
-// 			temp := convertValue2String(v)
-// 			if len(temp) > 0 {
-// 				sql += join_sql + k + " = " + "'" + temp + "' "
-// 			}
-// 			i++
-// 			break
-// 		case map[string]interface{}:
-// 			sql += join_sql + "(" + convertCondition(v.(map[string]interface{}), k) + ")"
-// 			i++
-// 			break
-// 		}
-// 	}
-// 	return sql
-// }
 
 /**
  * return the final sql str
