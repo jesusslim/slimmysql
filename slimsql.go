@@ -668,7 +668,7 @@ func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
 		wirteorread = "WRITE"
 	}
 	sqlstr := "LOCK TABLE " + tablesStr + " " + wirteorread
-	r, err := sqlDB.Exec(sqlstr)
+	_, err := sqlDB.Exec(sqlstr)
 	if err != nil {
 		slimSqlLog("Lock", "Lock "+tablesStr+" failed because "+err.Error())
 		return false, err.Error()
@@ -682,7 +682,7 @@ func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
  */
 func (this *Sql) Unlock() (bool, string) {
 	sqlstr := "UNLOCK TABLES"
-	r, err := sqlDB.Exec(sqlstr)
+	_, err := sqlDB.Exec(sqlstr)
 	if err != nil {
 		slimSqlLog("UnLock", "UnLock failed because "+err.Error())
 		return false, err.Error()
