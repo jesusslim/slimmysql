@@ -277,7 +277,6 @@ func (this *Sql) Find(id interface{}) (map[string]string, error) {
 		}
 	}
 	sqlstr := this.GetSql(true) + " limit 1"
-	slimSqlLog("Find", sqlstr)
 	var rows *sql.Rows
 	var err error
 	if this.tx != nil {
@@ -288,6 +287,7 @@ func (this *Sql) Find(id interface{}) (map[string]string, error) {
 	} else {
 		rows, err = sqlDB.Query(sqlstr)
 	}
+	slimSqlLog("Find", sqlstr)
 	if err != nil {
 		return nil, err
 	}
@@ -317,7 +317,6 @@ func (this *Sql) Find(id interface{}) (map[string]string, error) {
  */
 func (this *Sql) baseSelect(pk bool) (map[string](map[string]string), []map[string]string, error) {
 	sqlstr := this.GetSql(true)
-	slimSqlLog("Select", sqlstr)
 	var rows *sql.Rows
 	var err error
 	if this.tx != nil {
@@ -328,6 +327,7 @@ func (this *Sql) baseSelect(pk bool) (map[string](map[string]string), []map[stri
 	} else {
 		rows, err = sqlDB.Query(sqlstr)
 	}
+	slimSqlLog("Select", sqlstr)
 	if err != nil {
 		return nil, nil, err
 	}
