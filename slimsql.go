@@ -37,6 +37,7 @@ type Sql struct {
 	pageSql      string
 	tx           *sql.Tx //Transaction
 	pkSql        string  //primary key
+	forupdate    bool    //for update
 }
 
 /**
@@ -280,6 +281,9 @@ func (this *Sql) Find(id interface{}) (map[string]string, error) {
 	var rows *sql.Rows
 	var err error
 	if this.tx != nil {
+		if this.forupdate == true {
+			sqlstr += " FOR UPDATE"
+		}
 		rows, err = this.tx.Query(sqlstr)
 	} else {
 		rows, err = sqlDB.Query(sqlstr)
@@ -317,6 +321,9 @@ func (this *Sql) baseSelect(pk bool) (map[string](map[string]string), []map[stri
 	var rows *sql.Rows
 	var err error
 	if this.tx != nil {
+		if this.forupdate == true {
+			sqlstr += " FOR UPDATE"
+		}
 		rows, err = this.tx.Query(sqlstr)
 	} else {
 		rows, err = sqlDB.Query(sqlstr)
@@ -691,6 +698,19 @@ func (this *Sql) Unlock() (bool, string) {
 	return true, ""
 }
 
+/**
+ * Lock row / for update
+ */
+func (this *Sql) LockRow() *Sql {
+	if this.tx == nil {
+		slimSqlLog("LockRow", "Lockrow failed because tx is null.")
+		return this
+	} else {
+		this.forupdate = true
+		return this
+	}
+}
+
 func (this *Sql) Close() {
 	sqlDB.Close()
 }
@@ -706,6 +726,7 @@ func (this *Sql) Clear() *Sql {
 	this.pageSql = ""
 	this.tx = nil
 	this.pkSql = ""
+	this.forupdate = false
 	return this
 }
 
