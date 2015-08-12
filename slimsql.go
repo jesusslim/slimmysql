@@ -680,7 +680,7 @@ func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
 /**
  * Unlock
  */
-func (this *Sql) Unlock() {
+func (this *Sql) Unlock() (bool, string) {
 	sqlstr := "UNLOCK TABLES"
 	r, err := sqlDB.Exec(sqlstr)
 	if err != nil {
