@@ -658,6 +658,39 @@ func (this *Sql) Rollback() (bool, string) {
 	}
 }
 
+/**
+ * Lock table
+ */
+func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
+	tablesStr := safeInSql(tables, 2)
+	wirteorread := "READ"
+	if wirte == true {
+		wirteorread = "WRITE"
+	}
+	sqlstr := "LOCK TABLE " + tablesStr + " " + wirteorread
+	r, err := sqlDB.Exec(sqlstr)
+	if err != nil {
+		slimSqlLog("Lock", "Lock "+tablesStr+" failed because "+err.Error())
+		return false, err.Error()
+	}
+	slimSqlLog("Lock", "Lock "+tablesStr+" success")
+	return true, ""
+}
+
+/**
+ * Unlock
+ */
+func (this *Sql) Unlock() {
+	sqlstr := "UNLOCK TABLES"
+	r, err := sqlDB.Exec(sqlstr)
+	if err != nil {
+		slimSqlLog("UnLock", "UnLock failed because "+err.Error())
+		return false, err.Error()
+	}
+	slimSqlLog("UnLock", "UnLock success")
+	return true, ""
+}
+
 func (this *Sql) Close() {
 	sqlDB.Close()
 }
