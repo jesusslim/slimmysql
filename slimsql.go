@@ -734,3 +734,12 @@ func (this *Sql) Clear() *Sql {
 func slimSqlLog(thetype string, content string) {
 	fmt.Println("[SLIMSQL] " + thetype + ": " + content)
 }
+
+func (this *Sql) Ping() (bool, string) {
+	err := sqlDB.Ping()
+	if err != nil {
+		return false, err.Error()
+	} else {
+		return true, ""
+	}
+}
