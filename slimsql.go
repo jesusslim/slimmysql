@@ -8,28 +8,56 @@ import (
 	"strings"
 )
 
-var sqlDB *sql.DB
-var safeMode bool
-var prefix string
+type Coons struct {
+	sqlDB    *sql.DB
+	safeMode bool
+	prefix   string
+}
 
-var conns []map[string]string
+var conns map[int]Coons
 
 /**
  * Init sql conn
  */
-func InitSql(user string, pass string, ip string, port string, db string, pre string, safe bool) error {
-	slimSqlLog("Init", "user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
+func InitSql(id int, user string, pass string, ip string, port string, db string, pre string, safe bool) error {
 	var err error
-	sqlDB, err = sql.Open("mysql", user+":"+pass+"@tcp("+ip+":"+port+")/"+db+"?charset=utf8")
-	sqlDB.SetMaxOpenConns(2000)
-	sqlDB.SetMaxIdleConns(1000)
-	sqlDB.Ping()
-	prefix = pre
-	safeMode = safe
+	if conns[id] != nil {
+		//update
+		slimSqlLog("Init", "update conns_id:"+id+" user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
+		conns[i].sqlDB, err = sql.Open("mysql", user+":"+pass+"@tcp("+ip+":"+port+")/"+db+"?charset=utf8")
+		if err == nil {
+			conns[i].sqlDB.SetMaxOpenConns(2000)
+			conns[i].sqlDB.SetMaxIdleConns(1000)
+			conns[i].sqlDB.Ping()
+			conns[i].prefix = pre
+			conns[i].safeMode = safe
+		}
+	} else {
+		//new
+		slimSqlLog("Init", "new conns_id:"+id+" user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
+		var sqlDB *sql.DB
+		sqlDB, err = sql.Open("mysql", user+":"+pass+"@tcp("+ip+":"+port+")/"+db+"?charset=utf8")
+		if err == nil {
+			sqlDB.SetMaxOpenConns(2000)
+			sqlDB.SetMaxIdleConns(1000)
+			sqlDB.Ping()
+			conns[id] = &Coons{
+				sqlDB: sqlDB, safeMode: safe, prefix: pre,
+			}
+		}
+	}
 	return err
 }
 
+/**
+ * Init default connection
+ */
+func InitSqlDefault(user string, pass string, ip string, port string, db string, pre string, safe bool) error {
+	return InitSql(0, user, pass, ip, port, db, pre, safe)
+}
+
 type Sql struct {
+	conn_id      int //Which connection to use
 	fieldsSql    string
 	tableName    string
 	conditionSql string //where
@@ -41,6 +69,18 @@ type Sql struct {
 	tx           *sql.Tx //Transaction
 	pkSql        string  //primary key
 	forupdate    bool    //for update
+}
+
+/**
+ * Set connection
+ */
+func (this *Sql) SetConn(conn_id int) *Sql {
+	if conns[conn_id] != nil {
+		this.conn_id = conn_id
+	} else {
+		this.conn_id = 0
+	}
+	return this
 }
 
 /**
@@ -288,7 +328,7 @@ func (this *Sql) Find(id interface{}) (map[string]string, error) {
 		}
 		rows, err = this.tx.Query(sqlstr)
 	} else {
-		rows, err = sqlDB.Query(sqlstr)
+		rows, err = conns[this.conn_id].sqlDB.Query(sqlstr)
 	}
 	slimSqlLog("Find", sqlstr)
 	if err != nil {
@@ -328,7 +368,7 @@ func (this *Sql) baseSelect(pk bool) (map[string](map[string]string), []map[stri
 		}
 		rows, err = this.tx.Query(sqlstr)
 	} else {
-		rows, err = sqlDB.Query(sqlstr)
+		rows, err = conns[this.conn_id].sqlDB.Query(sqlstr)
 	}
 	slimSqlLog("Select", sqlstr)
 	if err != nil {
@@ -400,7 +440,7 @@ func (this *Sql) Count(filed string) (int, error) {
 	if this.tx != nil {
 		rows, err = this.tx.Query(sqlstr)
 	} else {
-		rows, err = sqlDB.Query(sqlstr)
+		rows, err = conns[this.conn_id].sqlDB.Query(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -489,7 +529,7 @@ func (this *Sql) Add(data map[string]interface{}) (int64, error) {
 	if this.tx != nil {
 		r, err = this.tx.Exec(sqlstr)
 	} else {
-		r, err = sqlDB.Exec(sqlstr)
+		r, err = conns[this.conn_id].sqlDB.Exec(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -542,7 +582,7 @@ func (this *Sql) Save(data map[string]interface{}) (int64, error) {
 	if this.tx != nil {
 		r, err = this.tx.Exec(sqlstr)
 	} else {
-		r, err = sqlDB.Exec(sqlstr)
+		r, err = conns[this.conn_id].sqlDB.Exec(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -575,7 +615,7 @@ func (this *Sql) SetInc(field string, value int) (int64, error) {
 	if this.tx != nil {
 		r, err = this.tx.Exec(sqlstr)
 	} else {
-		r, err = sqlDB.Exec(sqlstr)
+		r, err = conns[this.conn_id].sqlDB.Exec(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -601,7 +641,7 @@ func (this *Sql) Delete() (int64, error) {
 	if this.tx != nil {
 		r, err = this.tx.Exec(sqlstr)
 	} else {
-		r, err = sqlDB.Exec(sqlstr)
+		r, err = conns[this.conn_id].sqlDB.Exec(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -621,7 +661,7 @@ func (this *Sql) StartTrans() (bool, string) {
 		return false, "Tx not null!"
 	} else {
 		var err error
-		this.tx, err = sqlDB.Begin()
+		this.tx, err = conns[this.conn_id].sqlDB.Begin()
 		if err != nil {
 			slimSqlLog("Tx", "Start new tx failed because "+err.Error())
 			return false, err.Error()
@@ -678,7 +718,7 @@ func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
 		wirteorread = "WRITE"
 	}
 	sqlstr := "LOCK TABLE " + tablesStr + " " + wirteorread
-	_, err := sqlDB.Exec(sqlstr)
+	_, err := conns[this.conn_id].sqlDB.Exec(sqlstr)
 	if err != nil {
 		slimSqlLog("Lock", "Lock "+tablesStr+" failed because "+err.Error())
 		return false, err.Error()
@@ -692,7 +732,7 @@ func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
  */
 func (this *Sql) Unlock() (bool, string) {
 	sqlstr := "UNLOCK TABLES"
-	_, err := sqlDB.Exec(sqlstr)
+	_, err := conns[this.conn_id].sqlDB.Exec(sqlstr)
 	if err != nil {
 		slimSqlLog("UnLock", "UnLock failed because "+err.Error())
 		return false, err.Error()
@@ -719,6 +759,7 @@ func (this *Sql) Close() {
 }
 
 func (this *Sql) Clear() *Sql {
+	this.conn_id = 0
 	this.fieldsSql = ""
 	this.tableName = ""
 	this.conditionSql = ""
@@ -738,7 +779,7 @@ func slimSqlLog(thetype string, content string) {
 }
 
 func (this *Sql) Ping() (bool, string) {
-	err := sqlDB.Ping()
+	err := conns[this.conn_id].sqlDB.Ping()
 	if err != nil {
 		return false, err.Error()
 	} else {
