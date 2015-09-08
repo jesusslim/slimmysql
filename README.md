@@ -10,7 +10,12 @@ github地址:https://github.com/jesusslim/slimmysql
 
 	使用：
 	//初始化
-	err = slimmysql.InitSql("user", "pass", "ip", "port", "db", "prefix", false) //last param true:check sql safe
+	err = slimmysql.InitSqlDefault("user", "pass", "ip", "port", "db", "prefix", false) //last param true:check sql safe
+	
+	//More connections? 多个数据库连接
+	err = slimysql.InitSql(1,"user", "pass", "ip", "port", "db", "prefix", false) //last param true:check sql safe
+	//How to use? 切换数据库连接
+	slimsql.SetConn(1)	
 	
 	if err != nil {
 		this.Ctx.WriteString(err.Error())
@@ -83,6 +88,13 @@ github地址:https://github.com/jesusslim/slimmysql
 	commit
 	rollback
 	
+	锁表等
+	Lock
+	Unlock
+	LockRow(forupdate)
+	
+	ping 测试连接状态
+	
 	clear 清除slimmysql.Sql对象中的值（不清楚的情况下可重复使用 例如select之后 直接调用count可获得数量 而不需要重新传入condition等）
 	
 	具体可参考gowalker：https://gowalker.org/github.com/jesusslim/slimmysql
@@ -94,7 +106,7 @@ github地址:https://github.com/jesusslim/slimmysql
 	
 	//function in a controller based on beego
 	初始化
-	err = slimmysql.InitSql("user", "pass", "ip", "port", "db", "prefix", false) //last param true:check sql safe
+	err = slimmysql.InitSqlDefault("user", "pass", "ip", "port", "db", "prefix", false) //last param true:check sql safe
 	
 	if err != nil {
 		this.Ctx.WriteString(err.Error())
