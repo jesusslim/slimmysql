@@ -12,6 +12,8 @@ var sqlDB *sql.DB
 var safeMode bool
 var prefix string
 
+var conns []map[string]string
+
 /**
  * Init sql conn
  */
