@@ -8,40 +8,40 @@ import (
 	"strings"
 )
 
-type Coons struct {
+type Conns struct {
 	sqlDB    *sql.DB
 	safeMode bool
 	prefix   string
 }
 
-var conns map[int]Coons
+var conns map[int]Conns
 
 /**
  * Init sql conn
  */
 func InitSql(id int, user string, pass string, ip string, port string, db string, pre string, safe bool) error {
 	var err error
-	if conns[id] != nil {
+	if _, ok := conns[id]; ok {
 		//update
-		slimSqlLog("Init", "update conns_id:"+id+" user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
-		conns[i].sqlDB, err = sql.Open("mysql", user+":"+pass+"@tcp("+ip+":"+port+")/"+db+"?charset=utf8")
+		slimSqlLog("Init", "user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
+		conns[id].sqlDB, err = sql.Open("mysql", user+":"+pass+"@tcp("+ip+":"+port+")/"+db+"?charset=utf8")
 		if err == nil {
-			conns[i].sqlDB.SetMaxOpenConns(2000)
-			conns[i].sqlDB.SetMaxIdleConns(1000)
-			conns[i].sqlDB.Ping()
-			conns[i].prefix = pre
-			conns[i].safeMode = safe
+			conns[id].sqlDB.SetMaxOpenConns(2000)
+			conns[id].sqlDB.SetMaxIdleConns(1000)
+			conns[id].sqlDB.Ping()
+			conns[id].prefix = pre
+			conns[id].safeMode = safe
 		}
 	} else {
 		//new
-		slimSqlLog("Init", "new conns_id:"+id+" user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
+		slimSqlLog("Init", "user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
 		var sqlDB *sql.DB
 		sqlDB, err = sql.Open("mysql", user+":"+pass+"@tcp("+ip+":"+port+")/"+db+"?charset=utf8")
 		if err == nil {
 			sqlDB.SetMaxOpenConns(2000)
 			sqlDB.SetMaxIdleConns(1000)
 			sqlDB.Ping()
-			conns[id] = &Coons{
+			conns[id] = &Conns{
 				sqlDB: sqlDB, safeMode: safe, prefix: pre,
 			}
 		}
@@ -75,7 +75,7 @@ type Sql struct {
  * Set connection
  */
 func (this *Sql) SetConn(conn_id int) *Sql {
-	if conns[conn_id] != nil {
+	if _, ok := conns[id]; ok {
 		this.conn_id = conn_id
 	} else {
 		this.conn_id = 0
