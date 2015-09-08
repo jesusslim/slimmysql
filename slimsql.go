@@ -14,7 +14,7 @@ type Conns struct {
 	prefix   string
 }
 
-var conns map[int]Conns
+var conns map[int]*Conns
 
 /**
  * Init sql conn
@@ -75,7 +75,7 @@ type Sql struct {
  * Set connection
  */
 func (this *Sql) SetConn(conn_id int) *Sql {
-	if _, ok := conns[id]; ok {
+	if _, ok := conns[conn_id]; ok {
 		this.conn_id = conn_id
 	} else {
 		this.conn_id = 0
@@ -87,7 +87,7 @@ func (this *Sql) SetConn(conn_id int) *Sql {
  * Set table name,use prefix
  */
 func (this *Sql) Table(tablename string) *Sql {
-	this.tableName = prefix + safeInSql(tablename, 1)
+	this.tableName = conns[this.conn_id].prefix + this.safeInSql(tablename, 1)
 	return this
 }
 
@@ -95,7 +95,7 @@ func (this *Sql) Table(tablename string) *Sql {
  * Set table name,no prefix
  */
 func (this *Sql) TrueTable(tablename string) *Sql {
-	this.tableName = safeInSql(tablename, 1)
+	this.tableName = this.safeInSql(tablename, 1)
 	return this
 }
 
@@ -112,7 +112,7 @@ func (this *Sql) Pk(pk string) *Sql {
  * example:"id,title"
  */
 func (this *Sql) Fields(filed string) *Sql {
-	this.fieldsSql = safeInSql(filed, 1)
+	this.fieldsSql = this.safeInSql(filed, 1)
 	return this
 }
 
@@ -121,7 +121,7 @@ func (this *Sql) Fields(filed string) *Sql {
  * example:"INNER JOIN B on A.id = B.aid"
  */
 func (this *Sql) Join(joinsql string) *Sql {
-	this.joinSql = safeInSql(joinsql, 2)
+	this.joinSql = this.safeInSql(joinsql, 2)
 	return this
 }
 
@@ -129,7 +129,7 @@ func (this *Sql) Join(joinsql string) *Sql {
  * group by
  */
 func (this *Sql) Group(g string) *Sql {
-	this.groupSql = safeInSql(g, 1)
+	this.groupSql = this.safeInSql(g, 1)
 	return this
 }
 
@@ -138,7 +138,7 @@ func (this *Sql) Group(g string) *Sql {
  * example:"age > 24"
  */
 func (this *Sql) Having(h string) *Sql {
-	this.havingSql = safeInSql(h, 2)
+	this.havingSql = this.safeInSql(h, 2)
 	return this
 }
 
@@ -147,7 +147,7 @@ func (this *Sql) Having(h string) *Sql {
  * example:"id desc"
  */
 func (this *Sql) Order(order string) *Sql {
-	this.orderSql = safeInSql(order, 2)
+	this.orderSql = this.safeInSql(order, 2)
 	return this
 }
 
@@ -167,10 +167,10 @@ func (this *Sql) Page(page int, pagesize int) *Sql {
 func (this *Sql) Where(condition interface{}) *Sql {
 	switch condition.(type) {
 	case string:
-		this.conditionSql = safeInSql(condition.(string), 2)
+		this.conditionSql = this.safeInSql(condition.(string), 2)
 		break
 	case map[string]interface{}:
-		this.conditionSql = convertCondition(condition.(map[string]interface{}))
+		this.conditionSql = this.convertCondition(condition.(map[string]interface{}))
 		break
 	}
 	return this
@@ -179,7 +179,7 @@ func (this *Sql) Where(condition interface{}) *Sql {
 /**
  * convert condition to sql
  */
-func convertCondition(condition map[string]interface{}) string {
+func (this *Sql) convertCondition(condition map[string]interface{}) string {
 	sql := ""
 	join := "AND"
 	if condition["relation"] != nil && strings.ToUpper(condition["relation"].(string)) == "OR" {
@@ -199,11 +199,11 @@ func convertCondition(condition map[string]interface{}) string {
 			join_sql = " " + join + " "
 		}
 		if k == "_" {
-			sql += join_sql + "(" + convertCondition(v.(map[string]interface{})) + ")"
+			sql += join_sql + "(" + this.convertCondition(v.(map[string]interface{})) + ")"
 			i++
 			continue
 		}
-		temp := convertValue2String(v)
+		temp := this.convertValue2String(v)
 		if len(temp) > 0 {
 			if strings.Contains(k, "__") {
 				keys := strings.Split(k, "__")
@@ -312,7 +312,7 @@ func (this *Sql) Find(id interface{}) (map[string]string, error) {
 		this.pageSql = ""
 	}
 	if id != nil {
-		sel_id := convertValue2String(id)
+		sel_id := this.convertValue2String(id)
 		if len(this.pkSql) > 0 {
 			this.conditionSql = this.pkSql + " = '" + sel_id + "'"
 		} else {
@@ -427,7 +427,7 @@ func (this *Sql) GetField(fields string) (map[string](map[string]string), error)
  */
 func (this *Sql) Count(filed string) (int, error) {
 	if len(filed) > 0 {
-		this.fieldsSql = convertValue2String(filed)
+		this.fieldsSql = this.convertValue2String(filed)
 	} else {
 		this.fieldsSql = "*"
 	}
@@ -466,8 +466,8 @@ func (this *Sql) Count(filed string) (int, error) {
  * @sql
  * @level 1:space 2:;and\n 3:1+2
  */
-func safeInSql(sql string, level int) string {
-	if safeMode {
+func (this *Sql) safeInSql(sql string, level int) string {
+	if conns[this.conn_id].safeMode {
 		if level == 1 {
 			return strings.Replace(sql, " ", "", -1)
 		} else if level == 2 {
@@ -484,11 +484,11 @@ func safeInSql(sql string, level int) string {
  * Convert value to string with sql safe
  * @v value
  */
-func convertValue2String(v interface{}) string {
+func (this *Sql) convertValue2String(v interface{}) string {
 	var r string
 	switch v.(type) {
 	case string:
-		r = safeInSql(v.(string), 1)
+		r = this.safeInSql(v.(string), 1)
 		break
 	case int:
 		r = strconv.Itoa(v.(int))
@@ -519,7 +519,7 @@ func (this *Sql) Add(data map[string]interface{}) (int64, error) {
 	var values []string
 	for k, v := range data {
 		columns = append(columns, k)
-		tmp_v := convertValue2String(v)
+		tmp_v := this.convertValue2String(v)
 		values = append(values, "\""+tmp_v+"\"")
 	}
 	sqlstr := " INSERT INTO `" + this.tableName + "` " + " (" + strings.Join(columns, ",") + ") VALUES (" + strings.Join(values, ",") + ") "
@@ -563,9 +563,9 @@ func (this *Sql) Save(data map[string]interface{}) (int64, error) {
 			continue
 		}
 		if count > 0 {
-			setsql += ", " + k + "=\"" + convertValue2String(v) + "\" "
+			setsql += ", " + k + "=\"" + this.convertValue2String(v) + "\" "
 		} else {
-			setsql += " " + k + "=\"" + convertValue2String(v) + "\" "
+			setsql += " " + k + "=\"" + this.convertValue2String(v) + "\" "
 		}
 		count++
 	}
@@ -573,7 +573,7 @@ func (this *Sql) Save(data map[string]interface{}) (int64, error) {
 		//do not need pk
 
 	} else {
-		this.conditionSql = pk + " = \"" + convertValue2String(data[pk]) + "\" "
+		this.conditionSql = pk + " = \"" + this.convertValue2String(data[pk]) + "\" "
 	}
 	sqlstr += setsql + " WHERE " + this.conditionSql
 	slimSqlLog("Update", sqlstr)
@@ -605,8 +605,8 @@ func (this *Sql) Save(data map[string]interface{}) (int64, error) {
 func (this *Sql) SetInc(field string, value int) (int64, error) {
 	sqlstr := " UPDATE " + this.tableName + " "
 	sqlstr += " SET "
-	field_filted := convertValue2String(field)
-	sqlstr += field_filted + " = " + field_filted + " + " + convertValue2String(value)
+	field_filted := this.convertValue2String(field)
+	sqlstr += field_filted + " = " + field_filted + " + " + this.convertValue2String(value)
 	sqlstr += " WHERE "
 	sqlstr += this.conditionSql
 	slimSqlLog("SETINC", sqlstr)
@@ -712,7 +712,7 @@ func (this *Sql) Rollback() (bool, string) {
  * Lock table
  */
 func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
-	tablesStr := safeInSql(tables, 2)
+	tablesStr := this.safeInSql(tables, 2)
 	wirteorread := "READ"
 	if wirte == true {
 		wirteorread = "WRITE"
@@ -755,7 +755,7 @@ func (this *Sql) LockRow() *Sql {
 }
 
 func (this *Sql) Close() {
-	sqlDB.Close()
+	conns[this.conn_id].sqlDB.Close()
 }
 
 func (this *Sql) Clear() *Sql {
