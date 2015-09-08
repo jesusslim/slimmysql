@@ -21,6 +21,9 @@ var conns map[int]*Conns
  */
 func InitSql(id int, user string, pass string, ip string, port string, db string, pre string, safe bool) error {
 	var err error
+	if conns == nil {
+		conns = make(map[int]*Conns)
+	}
 	if _, ok := conns[id]; ok {
 		//update
 		slimSqlLog("Init", "user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
