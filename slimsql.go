@@ -9,6 +9,8 @@ import (
 	"strings"
 )
 
+const VERSION = "2.1.0"
+
 type Conns struct {
 	sqlDB      *sql.DB   //master db for write | 主库
 	sqlDBSub   []*sql.DB //dbs for read  | 从
