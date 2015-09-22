@@ -2,6 +2,7 @@ package slimmysql
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"strconv"
@@ -9,61 +10,225 @@ import (
 )
 
 type Conns struct {
-	sqlDB    *sql.DB
-	safeMode bool
-	prefix   string
+	sqlDB      *sql.DB   //master db for write | 主库
+	sqlDBSub   []*sql.DB //dbs for read  | 从
+	rwSeparate bool      //use read,write separate | 使用读写分离
+	safeMode   bool      //safe for sql format | sql注入安全
+	rwSepTag   int       //tag of dbs for read order | 读库顺序标记
+	subCount   int       //count of dbs for read | 读库数量
+	prefix     string    //prefix of tables | 数据库前缀
 }
 
-var conns map[int]*Conns
+var conns map[string]*Conns //all connections
+
+func init() {
+	conns = make(map[string]*Conns)
+}
 
 /**
- * Init sql conn
+ * [RegisterConnectionDefault Reg the default connection]
+ * @param {[bool]} rwSep                     bool          [use RWseparate]
+ * @param {[string]} hosts                     [hosts for exp:192.168.0.1,192.168.0.2]
+ * @param {[string]} port                      [port for exp:3306,3307]
+ * @param {[string]} dbname                    [dbnames]
+ * @param {[string]} user                      [users]
+ * @param {[string]} pass                      string        [passwords]
+ * @param {[string]} pre                       string        [prefix]
+ * @param {[bool]} safe                      bool          [safemode]
+ * @param {[int]} maxOpenConnsNmaxIdleConns ...int        [maxOpenConns and maxIdleConns for exp:2000,1000]
  */
-func InitSql(id int, user string, pass string, ip string, port string, db string, pre string, safe bool) error {
-	var err error
-	if conns == nil {
-		conns = make(map[int]*Conns)
+func RegisterConnectionDefault(rwSep bool, hosts, port, dbname, user, pass string, pre string, safe bool, maxOpenConnsNmaxIdleConns ...int) {
+	RegisterConnection("default", rwSep, hosts, port, dbname, user, pass, pre, safe, maxOpenConnsNmaxIdleConns...)
+}
+
+/**
+ * [RegisterConnection Reg a connection]
+ * @param {[string]} name                      string        [connection name]
+ * @param {[bool]} rwSep                     bool          [use RWseparate]
+ * @param {[string]} hosts                     [hosts for exp:192.168.0.1,192.168.0.2]
+ * @param {[string]} port                      [port for exp:3306,3307]
+ * @param {[string]} dbname                    [dbnames]
+ * @param {[string]} user                      [users]
+ * @param {[string]} pass                      string        [passwords]
+ * @param {[string]} pre                       string        [prefix]
+ * @param {[bool]} safe                      bool          [safemode]
+ * @param {[int]} maxOpenConnsNmaxIdleConns ...int        [maxOpenConns and maxIdleConns for exp:2000,1000]
+ */
+func RegisterConnection(name string, rwSep bool, hosts, port, dbname, user, pass string, pre string, safe bool, maxOpenConnsNmaxIdleConns ...int) {
+	conn := &Conns{
+		rwSeparate: rwSep,
+		safeMode:   safe,
+		rwSepTag:   0,
+		subCount:   0,
+		prefix:     pre,
 	}
-	if _, ok := conns[id]; ok {
-		//update
-		slimSqlLog("Init", "user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
-		conns[id].sqlDB, err = sql.Open("mysql", user+":"+pass+"@tcp("+ip+":"+port+")/"+db+"?charset=utf8")
-		if err == nil {
-			conns[id].sqlDB.SetMaxOpenConns(2000)
-			conns[id].sqlDB.SetMaxIdleConns(1000)
-			conns[id].sqlDB.Ping()
-			conns[id].prefix = pre
-			conns[id].safeMode = safe
+	maxOpenConns := 2000
+	maxIdleConns := 1000
+	if len(maxOpenConnsNmaxIdleConns) == 2 {
+		maxOpenConns = maxOpenConnsNmaxIdleConns[0]
+		maxIdleConns = maxOpenConnsNmaxIdleConns[1]
+	} else if len(maxOpenConnsNmaxIdleConns) == 1 {
+		maxOpenConns = maxOpenConnsNmaxIdleConns[0]
+	}
+	if rwSep {
+		hostsArr := strings.Split(hosts, ",")
+		hostsNum := len(hostsArr)
+		if hostsNum == 0 {
+			panic("No hosts set.")
 		}
-	} else {
-		//new
-		slimSqlLog("Init", "user:"+user+" pass:"+pass+" ip:"+ip+" port:"+port+" db:"+db)
-		var sqlDB *sql.DB
-		sqlDB, err = sql.Open("mysql", user+":"+pass+"@tcp("+ip+":"+port+")/"+db+"?charset=utf8")
-		if err == nil {
-			sqlDB.SetMaxOpenConns(2000)
-			sqlDB.SetMaxIdleConns(1000)
-			sqlDB.Ping()
-			conns[id] = &Conns{
-				sqlDB: sqlDB, safeMode: safe, prefix: pre,
+		portArr := strings.Split(port, ",")
+		if len(portArr) == 0 {
+			panic("No ports set.")
+		}
+		dbnameArr := strings.Split(dbname, ",")
+		if len(dbnameArr) == 0 {
+			panic("No db set.")
+		}
+		userArr := strings.Split(user, ",")
+		if len(userArr) == 0 {
+			panic("No user set.")
+		}
+		passArr := strings.Split(pass, ",")
+		if len(passArr) == 0 {
+			panic("No password set.")
+		}
+		//reg master
+		dbmaster, err := conn.initSql(hostsArr[0], portArr[0], dbnameArr[0], userArr[0], passArr[0], maxOpenConns, maxIdleConns)
+		if err != nil {
+			panic("Register Mysql Connection Failed.")
+		}
+		conn.sqlDB = dbmaster
+		//reg sub
+		if len(hostsArr) > 1 {
+			//has sub
+			for key, hostTemp := range hostsArr[1:] {
+				k := key + 1
+				var portTemp, dbnameTemp, userTemp, passTemp string
+				var ok bool
+				if ok = k < len(portArr); !ok {
+					portTemp = portArr[len(portArr)-1]
+				} else {
+					portTemp = portArr[k]
+				}
+				if ok = k < len(dbnameArr); !ok {
+					dbnameTemp = dbnameArr[len(dbnameArr)-1]
+				} else {
+					dbnameTemp = dbnameArr[k]
+				}
+				if ok = k < len(userArr); !ok {
+					userTemp = userArr[len(userArr)-1]
+				} else {
+					userTemp = userArr[k]
+				}
+				if ok = k < len(passArr); !ok {
+					passTemp = passArr[len(passArr)-1]
+				} else {
+					passTemp = passArr[k]
+				}
+				dbsub, err := conn.initSql(hostTemp, portTemp, dbnameTemp, userTemp, passTemp, maxOpenConns, maxIdleConns)
+				if err != nil {
+					panic("Register Mysql Connection Failed.")
+				}
+				conn.sqlDBSub = append(conn.sqlDBSub, dbsub)
+				conn.subCount++
 			}
 		}
+	} else {
+		dbmaster, err := conn.initSql(hosts, port, dbname, user, pass, maxOpenConns, maxIdleConns)
+		if err != nil {
+			panic("Register Mysql Connection Failed.")
+		}
+		conn.sqlDB = dbmaster
 	}
-	return err
+	conns[name] = conn
+}
+
+func (this *Conns) initSql(host, port, dbname, user, pass string, maxOpenConns, maxIdleConns int) (*sql.DB, error) {
+	slimSqlLog("Init", "user:"+user+" pass:"+pass+" host:"+host+" port:"+port+" dbname:"+dbname)
+	var sqlDB *sql.DB
+	var err error
+	sqlDB, err = sql.Open("mysql", user+":"+pass+"@tcp("+host+":"+port+")/"+dbname+"?charset=utf8")
+	if err != nil {
+		return nil, err
+	}
+	if maxOpenConns > 0 {
+		sqlDB.SetMaxOpenConns(maxOpenConns)
+	} else {
+		sqlDB.SetMaxOpenConns(2000)
+	}
+	if maxIdleConns > 0 {
+		sqlDB.SetMaxIdleConns(maxIdleConns)
+	} else {
+		sqlDB.SetMaxIdleConns(1000)
+	}
+	err = sqlDB.Ping()
+	if err != nil {
+		return nil, err
+	}
+	return sqlDB, nil
 }
 
 /**
- * Init default connection
+ * 获取写库sql.DB
  */
-func InitSqlDefault(user string, pass string, ip string, port string, db string, pre string, safe bool) error {
-	return InitSql(0, user, pass, ip, port, db, pre, safe)
+func (this *Conns) getDbW() *sql.DB {
+	return this.sqlDB
+}
+
+/**
+ * 获取读库sql.DB
+ */
+func (this *Conns) getDbR() *sql.DB {
+	if this.rwSeparate {
+		//无从库 走主库
+		if this.subCount == 0 {
+			return this.sqlDB
+		}
+		//按顺序分配从库
+		if this.rwSepTag < this.subCount {
+			dbUsed := this.sqlDBSub[this.rwSepTag]
+			this.rwSepTag++
+			return dbUsed
+		} else {
+			this.rwSepTag = 1
+			return this.sqlDBSub[0]
+		}
+	} else {
+		return this.sqlDB
+	}
+}
+
+/**
+ * [NewSqlInstanceDefault Get a new instance for user]
+ */
+func NewSqlInstanceDefault() (*Sql, error) {
+	return NewSqlInstance("default")
+}
+
+/**
+ * [NewSqlInstance Get a new instance for user]
+ * @param {[string]} name string [connection name]
+ * @return (*Sql, error)
+ */
+func NewSqlInstance(name string) (*Sql, error) {
+	conn, ok := conns[name]
+	if !ok {
+		return nil, errors.New("Connection " + name + " not found.")
+	}
+	sqlInstance := &Sql{
+		conn_id:    name,
+		connection: conn,
+	}
+	return sqlInstance.Clear(), nil
 }
 
 type Sql struct {
-	conn_id      int //Which connection to use
+	conn_id      string //Which connection to use
+	connection   *Conns //connection
+	mustMaster   bool   //must use db master
 	fieldsSql    string
 	tableName    string
-	conditionSql string //where
+	conditionSql string //sql in where
 	joinSql      string
 	groupSql     string
 	havingSql    string
@@ -74,23 +239,38 @@ type Sql struct {
 	forupdate    bool    //for update
 }
 
-/**
- * Set connection
- */
-func (this *Sql) SetConn(conn_id int) *Sql {
-	if _, ok := conns[conn_id]; ok {
-		this.conn_id = conn_id
-	} else {
-		this.conn_id = 0
-	}
+func (this *Sql) GetConnectionName() string {
+	return this.conn_id
+}
+
+func (this *Sql) MustMaster(mustMaster bool) *Sql {
+	this.mustMaster = mustMaster
 	return this
+}
+
+/**
+ * Get the sql.DB from db write
+ */
+func (this *Sql) getDbW() *sql.DB {
+	return this.connection.getDbW()
+}
+
+/**
+ * Get the sql.DB from db read
+ */
+func (this *Sql) getDbR() *sql.DB {
+	if this.mustMaster {
+		return this.connection.getDbW()
+	} else {
+		return this.connection.getDbR()
+	}
 }
 
 /**
  * Set table name,use prefix
  */
 func (this *Sql) Table(tablename string) *Sql {
-	this.tableName = conns[this.conn_id].prefix + this.safeInSql(tablename, 1)
+	this.tableName = this.connection.prefix + this.safeInSql(tablename, 1)
 	return this
 }
 
@@ -331,7 +511,7 @@ func (this *Sql) Find(id interface{}) (map[string]string, error) {
 		}
 		rows, err = this.tx.Query(sqlstr)
 	} else {
-		rows, err = conns[this.conn_id].sqlDB.Query(sqlstr)
+		rows, err = this.getDbR().Query(sqlstr)
 	}
 	slimSqlLog("Find", sqlstr)
 	if err != nil {
@@ -371,7 +551,7 @@ func (this *Sql) baseSelect(pk bool) (map[string](map[string]string), []map[stri
 		}
 		rows, err = this.tx.Query(sqlstr)
 	} else {
-		rows, err = conns[this.conn_id].sqlDB.Query(sqlstr)
+		rows, err = this.getDbR().Query(sqlstr)
 	}
 	slimSqlLog("Select", sqlstr)
 	if err != nil {
@@ -443,7 +623,7 @@ func (this *Sql) Count(filed string) (int, error) {
 	if this.tx != nil {
 		rows, err = this.tx.Query(sqlstr)
 	} else {
-		rows, err = conns[this.conn_id].sqlDB.Query(sqlstr)
+		rows, err = this.getDbR().Query(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -470,7 +650,7 @@ func (this *Sql) Count(filed string) (int, error) {
  * @level 1:space 2:;and\n 3:1+2
  */
 func (this *Sql) safeInSql(sql string, level int) string {
-	if conns[this.conn_id].safeMode {
+	if this.connection.safeMode {
 		if level == 1 {
 			return strings.Replace(sql, " ", "", -1)
 		} else if level == 2 {
@@ -532,7 +712,7 @@ func (this *Sql) Add(data map[string]interface{}) (int64, error) {
 	if this.tx != nil {
 		r, err = this.tx.Exec(sqlstr)
 	} else {
-		r, err = conns[this.conn_id].sqlDB.Exec(sqlstr)
+		r, err = this.getDbW().Exec(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -585,7 +765,7 @@ func (this *Sql) Save(data map[string]interface{}) (int64, error) {
 	if this.tx != nil {
 		r, err = this.tx.Exec(sqlstr)
 	} else {
-		r, err = conns[this.conn_id].sqlDB.Exec(sqlstr)
+		r, err = this.getDbW().Exec(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -618,7 +798,7 @@ func (this *Sql) SetInc(field string, value int) (int64, error) {
 	if this.tx != nil {
 		r, err = this.tx.Exec(sqlstr)
 	} else {
-		r, err = conns[this.conn_id].sqlDB.Exec(sqlstr)
+		r, err = this.getDbW().Exec(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -644,7 +824,7 @@ func (this *Sql) Delete() (int64, error) {
 	if this.tx != nil {
 		r, err = this.tx.Exec(sqlstr)
 	} else {
-		r, err = conns[this.conn_id].sqlDB.Exec(sqlstr)
+		r, err = this.getDbW().Exec(sqlstr)
 	}
 	if err != nil {
 		return 0, err
@@ -664,7 +844,7 @@ func (this *Sql) StartTrans() (bool, string) {
 		return false, "Tx not null!"
 	} else {
 		var err error
-		this.tx, err = conns[this.conn_id].sqlDB.Begin()
+		this.tx, err = this.getDbW().Begin()
 		if err != nil {
 			slimSqlLog("Tx", "Start new tx failed because "+err.Error())
 			return false, err.Error()
@@ -721,7 +901,7 @@ func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
 		wirteorread = "WRITE"
 	}
 	sqlstr := "LOCK TABLE " + tablesStr + " " + wirteorread
-	_, err := conns[this.conn_id].sqlDB.Exec(sqlstr)
+	_, err := this.getDbW().Exec(sqlstr)
 	if err != nil {
 		slimSqlLog("Lock", "Lock "+tablesStr+" failed because "+err.Error())
 		return false, err.Error()
@@ -735,7 +915,7 @@ func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
  */
 func (this *Sql) Unlock() (bool, string) {
 	sqlstr := "UNLOCK TABLES"
-	_, err := conns[this.conn_id].sqlDB.Exec(sqlstr)
+	_, err := this.getDbW().Exec(sqlstr)
 	if err != nil {
 		slimSqlLog("UnLock", "UnLock failed because "+err.Error())
 		return false, err.Error()
@@ -757,12 +937,11 @@ func (this *Sql) LockRow() *Sql {
 	}
 }
 
-func (this *Sql) Close() {
-	conns[this.conn_id].sqlDB.Close()
-}
-
 func (this *Sql) Clear() *Sql {
-	this.conn_id = 0
+	if this.tx != nil {
+		this.Commit()
+	}
+	this.mustMaster = false
 	this.fieldsSql = ""
 	this.tableName = ""
 	this.conditionSql = ""
@@ -782,10 +961,14 @@ func slimSqlLog(thetype string, content string) {
 }
 
 func (this *Sql) Ping() (bool, string) {
-	err := conns[this.conn_id].sqlDB.Ping()
+	err := this.getDbW().Ping()
 	if err != nil {
 		return false, err.Error()
 	} else {
 		return true, ""
 	}
+}
+
+func (this *Sql) NewCondition() map[string]interface{} {
+	return make(map[string]interface{})
 }
