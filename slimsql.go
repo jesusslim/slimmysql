@@ -406,20 +406,20 @@ func (this *Sql) convertCondition(condition map[string]interface{}) string {
 				sql += join_sql + temp_key + " != " + "'" + temp + "' "
 				break
 			case "gt":
-				sql += join_sql + temp_key + " > " + temp + " "
+				sql += join_sql + temp_key + " > " + "'" + temp + "' "
 				break
 			case "egt":
-				sql += join_sql + temp_key + " >= " + temp + " "
+				sql += join_sql + temp_key + " >= " + "'" + temp + "' "
 				break
 			case "lt":
-				sql += join_sql + temp_key + " < " + temp + " "
+				sql += join_sql + temp_key + " < " + "'" + temp + "' "
 				break
 			case "elt":
-				sql += join_sql + temp_key + " <= " + temp + " "
+				sql += join_sql + temp_key + " <= " + "'" + temp + "' "
 				break
 			case "between":
 				temp_v := strings.Split(temp, "|")
-				sql += join_sql + " ( " + temp_key + " BETWEEN " + temp_v[0] + " AND " + temp_v[1] + " ) "
+				sql += join_sql + " ( " + temp_key + " BETWEEN '" + temp_v[0] + "' AND '" + temp_v[1] + "' ) "
 				break
 			case "in":
 				sql += join_sql + temp_key + " IN (" + temp + ") "
