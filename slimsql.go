@@ -515,8 +515,9 @@ func (this *Sql) Find(id interface{}) (map[string]string, error) {
 	} else {
 		rows, err = this.getDbR().Query(sqlstr)
 	}
-	slimSqlLog("Find", sqlstr)
+	//slimSqlLog("Find", sqlstr)
 	if err != nil {
+		slimSqlLog("ERROR", sqlstr)
 		return nil, err
 	}
 	defer rows.Close()
@@ -555,13 +556,15 @@ func (this *Sql) baseSelect(pk bool) (map[string](map[string]string), []map[stri
 	} else {
 		rows, err = this.getDbR().Query(sqlstr)
 	}
-	slimSqlLog("Select", sqlstr)
+	//slimSqlLog("Select", sqlstr)
 	if err != nil {
+		slimSqlLog("ERROR", sqlstr)
 		return nil, nil, err
 	}
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
+		slimSqlLog("ERROR", err.Error())
 		return nil, nil, err
 	}
 	scanArgs := make([]interface{}, len(columns))
@@ -619,7 +622,7 @@ func (this *Sql) Count(filed string) (int, error) {
 	this.orderSql = ""
 	this.pageSql = ""
 	sqlstr := this.GetSql(false)
-	slimSqlLog("Count", sqlstr)
+	//slimSqlLog("Count", sqlstr)
 	var rows *sql.Rows
 	var err error
 	if this.tx != nil {
@@ -628,6 +631,7 @@ func (this *Sql) Count(filed string) (int, error) {
 		rows, err = this.getDbR().Query(sqlstr)
 	}
 	if err != nil {
+		slimSqlLog("ERROR", sqlstr)
 		return 0, err
 	}
 	defer rows.Close()
@@ -708,7 +712,7 @@ func (this *Sql) Add(data map[string]interface{}) (int64, error) {
 		values = append(values, "\""+tmp_v+"\"")
 	}
 	sqlstr := " INSERT INTO `" + this.tableName + "` " + " (" + strings.Join(columns, ",") + ") VALUES (" + strings.Join(values, ",") + ") "
-	slimSqlLog("Insert", sqlstr)
+	//slimSqlLog("Insert", sqlstr)
 	var r sql.Result
 	var err error
 	if this.tx != nil {
@@ -717,6 +721,7 @@ func (this *Sql) Add(data map[string]interface{}) (int64, error) {
 		r, err = this.getDbW().Exec(sqlstr)
 	}
 	if err != nil {
+		slimSqlLog("ERROR", sqlstr)
 		return 0, err
 	} else {
 		id, err := r.LastInsertId()
@@ -761,7 +766,7 @@ func (this *Sql) Save(data map[string]interface{}) (int64, error) {
 		this.conditionSql = pk + " = \"" + this.convertValue2String(data[pk]) + "\" "
 	}
 	sqlstr += setsql + " WHERE " + this.conditionSql
-	slimSqlLog("Update", sqlstr)
+	//slimSqlLog("Update", sqlstr)
 	var r sql.Result
 	var err error
 	if this.tx != nil {
@@ -770,6 +775,7 @@ func (this *Sql) Save(data map[string]interface{}) (int64, error) {
 		r, err = this.getDbW().Exec(sqlstr)
 	}
 	if err != nil {
+		slimSqlLog("ERROR", sqlstr)
 		return 0, err
 	} else {
 		num, err := r.RowsAffected()
@@ -794,7 +800,7 @@ func (this *Sql) SetInc(field string, value int) (int64, error) {
 	sqlstr += field_filted + " = " + field_filted + " + " + this.convertValue2String(value)
 	sqlstr += " WHERE "
 	sqlstr += this.conditionSql
-	slimSqlLog("SETINC", sqlstr)
+	//slimSqlLog("SETINC", sqlstr)
 	var r sql.Result
 	var err error
 	if this.tx != nil {
@@ -803,6 +809,7 @@ func (this *Sql) SetInc(field string, value int) (int64, error) {
 		r, err = this.getDbW().Exec(sqlstr)
 	}
 	if err != nil {
+		slimSqlLog("ERROR", sqlstr)
 		return 0, err
 	} else {
 		num, err := r.RowsAffected()
@@ -820,7 +827,7 @@ func (this *Sql) SetInc(field string, value int) (int64, error) {
  */
 func (this *Sql) Delete() (int64, error) {
 	sqlstr := " DELETE FROM " + this.tableName + " WHERE " + this.conditionSql
-	slimSqlLog("Delete", sqlstr)
+	//slimSqlLog("Delete", sqlstr)
 	var r sql.Result
 	var err error
 	if this.tx != nil {
@@ -829,6 +836,7 @@ func (this *Sql) Delete() (int64, error) {
 		r, err = this.getDbW().Exec(sqlstr)
 	}
 	if err != nil {
+		slimSqlLog("ERROR", sqlstr)
 		return 0, err
 	} else {
 		num, err := r.RowsAffected()
@@ -842,7 +850,7 @@ func (this *Sql) Delete() (int64, error) {
 
 func (this *Sql) StartTrans() (bool, string) {
 	if this.tx != nil {
-		slimSqlLog("Tx", "Start new tx failed because tx is not null.")
+		//slimSqlLog("Tx", "Start new tx failed because tx is not null.")
 		return false, "Tx not null!"
 	} else {
 		var err error
@@ -851,7 +859,7 @@ func (this *Sql) StartTrans() (bool, string) {
 			slimSqlLog("Tx", "Start new tx failed because "+err.Error())
 			return false, err.Error()
 		} else {
-			slimSqlLog("Tx", "Start new tx success.")
+			//slimSqlLog("Tx", "Start new tx success.")
 			return true, ""
 		}
 	}
@@ -859,7 +867,7 @@ func (this *Sql) StartTrans() (bool, string) {
 
 func (this *Sql) Commit() (bool, string) {
 	if this.tx == nil {
-		slimSqlLog("Tx", "Commit tx failed because tx is null.")
+		//slimSqlLog("Tx", "Commit tx failed because tx is null.")
 		return false, "Tx is null!"
 	} else {
 		var err error
@@ -869,7 +877,7 @@ func (this *Sql) Commit() (bool, string) {
 			slimSqlLog("Tx", "Commit tx failed because "+err.Error())
 			return false, err.Error()
 		} else {
-			slimSqlLog("Tx", "Commit tx success.")
+			//slimSqlLog("Tx", "Commit tx success.")
 			return true, ""
 		}
 	}
@@ -877,7 +885,7 @@ func (this *Sql) Commit() (bool, string) {
 
 func (this *Sql) Rollback() (bool, string) {
 	if this.tx == nil {
-		slimSqlLog("Tx", "Rollback tx failed because tx is null.")
+		//slimSqlLog("Tx", "Rollback tx failed because tx is null.")
 		return false, "Tx is null!"
 	} else {
 		var err error
@@ -887,7 +895,7 @@ func (this *Sql) Rollback() (bool, string) {
 			slimSqlLog("Tx", "Rollback tx failed because "+err.Error())
 			return false, err.Error()
 		} else {
-			slimSqlLog("Tx", "Rollback tx success.")
+			//slimSqlLog("Tx", "Rollback tx success.")
 			return true, ""
 		}
 	}
@@ -908,7 +916,7 @@ func (this *Sql) Lock(tables string, wirte bool) (bool, string) {
 		slimSqlLog("Lock", "Lock "+tablesStr+" failed because "+err.Error())
 		return false, err.Error()
 	}
-	slimSqlLog("Lock", "Lock "+tablesStr+" success")
+	//slimSqlLog("Lock", "Lock "+tablesStr+" success")
 	return true, ""
 }
 
@@ -922,7 +930,7 @@ func (this *Sql) Unlock() (bool, string) {
 		slimSqlLog("UnLock", "UnLock failed because "+err.Error())
 		return false, err.Error()
 	}
-	slimSqlLog("UnLock", "UnLock success")
+	//slimSqlLog("UnLock", "UnLock success")
 	return true, ""
 }
 
@@ -931,7 +939,7 @@ func (this *Sql) Unlock() (bool, string) {
  */
 func (this *Sql) LockRow() *Sql {
 	if this.tx == nil {
-		slimSqlLog("LockRow", "Lockrow failed because tx is null.")
+		//slimSqlLog("LockRow", "Lockrow failed because tx is null.")
 		return this
 	} else {
 		this.forupdate = true
