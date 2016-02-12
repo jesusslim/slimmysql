@@ -982,3 +982,15 @@ func (this *Sql) Ping() (bool, string) {
 func (this *Sql) NewCondition() map[string]interface{} {
 	return make(map[string]interface{})
 }
+
+func (this *Sql) Query(theSql string) (*sql.Rows, error) {
+	return this.getDbR().Query(theSql)
+}
+
+func (this *Sql) QueryRow(theSql string) *sql.Row {
+	return this.getDbR().QueryRow(theSql)
+}
+
+func (this *Sql) Exec(theSql string) (sql.Result, error) {
+	return this.getDbW().Exec(theSql)
+}
