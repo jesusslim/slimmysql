@@ -542,10 +542,16 @@ func (this *Sql) Find(id interface{}) (map[string]string, error) {
 
 /**
  * base select func
- * @pk true:return a map,first field is key|false:reuturn an array
+ * @param bool pk true:return a map,first field is key|false:reuturn an array
+ * @param real_sql string
  */
-func (this *Sql) baseSelect(pk bool) (map[string](map[string]string), []map[string]string, error) {
-	sqlstr := this.GetSql(true)
+func (this *Sql) baseSelect(pk bool, real_sql ...string) (map[string](map[string]string), []map[string]string, error) {
+	var sqlstr string
+	if len(real_sql) > 0 {
+		sqlstr = this.safeInSql(real_sql[0], 2)
+	} else {
+		sqlstr = this.GetSql(true)
+	}
 	var rows *sql.Rows
 	var err error
 	if this.tx != nil {
@@ -993,4 +999,9 @@ func (this *Sql) QueryRow(theSql string) *sql.Row {
 
 func (this *Sql) Exec(theSql string) (sql.Result, error) {
 	return this.getDbW().Exec(theSql)
+}
+
+func (this *Sql) QueryMap(theSql string) ([]map[string]string, error) {
+	_, r, err := this.baseSelect(false, theSql)
+	return r, err
 }
